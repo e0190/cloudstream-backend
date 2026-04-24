@@ -10,7 +10,12 @@ CORS(app)
 @app.route('/search')
 def search():
     query = request.args.get('q')
-    ydl_opts = {'format': 'bestaudio/best', 'quiet': True, 'noplaylist': True}
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'quiet': True,
+        'no_warnings': True,
+        'extract_flat': False,
+    }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(f"ytsearch5:{query} official music", download=False)
@@ -18,7 +23,7 @@ def search():
             for entry in info.get('entries', []):
                 if not entry: continue
                 
-                # We fetch the image and turn it into a string so the sandbox can't block it
+                # Convert thumbnail to Base64 so Google can't block the URL
                 thumb_url = f"https://img.youtube.com/vi/{entry['id']}/mqdefault.jpg"
                 try:
                     img_data = base64.b64encode(requests.get(thumb_url).content).decode('utf-8')
@@ -31,7 +36,7 @@ def search():
                     'uploader': entry.get('uploader'),
                     'id': entry.get('id'),
                     'thumbnail': b64_thumb,
-                    'audio_url': entry.get('url') # Raw stream URL
+                    'audio_url': entry.get('url')
                 })
         return jsonify(results)
     except Exception as e:
