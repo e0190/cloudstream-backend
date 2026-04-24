@@ -10,31 +10,24 @@ CORS(app)
 @app.route('/search')
 def search():
     query = request.args.get('q')
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'quiet': True,
-        'noplaylist': True,
-    }
+    ydl_opts = {'format': 'bestaudio/best', 'quiet': True, 'noplaylist': True}
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            # Get only 3 results to keep the data size manageable
             info = ydl.extract_info(f"ytsearch3:{query} official audio", download=False)
             results = []
             for entry in info.get('entries', []):
                 if not entry: continue
                 
-                # Convert Thumbnail to Base64
+                # Fetch image and convert to Base64 string
                 thumb_url = f"https://img.youtube.com/vi/{entry['id']}/mqdefault.jpg"
-                img_b64 = ""
-                try:
-                    img_b64 = "data:image/jpeg;base64," + base64.b64encode(requests.get(thumb_url).content).decode('utf-8')
-                except: pass
+                img_data = base64.b64encode(requests.get(thumb_url).content).decode('utf-8')
 
-                # Get Audio URL
                 results.append({
                     'title': entry.get('title'),
                     'uploader': entry.get('uploader'),
-                    'thumbnail': img_b64,
-                    'id': entry.get('id')
+                    'id': entry.get('id'),
+                    'img_b64': img_data
                 })
         return jsonify(results)
     except Exception as e:
@@ -46,10 +39,10 @@ def get_audio(vid_id):
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(f"https://www.youtube.com/watch?v={vid_id}", download=False)
-            # Fetch the actual audio bytes and send as a Data URI
-            audio_data = requests.get(info['url']).content
-            b64_audio = "data:audio/mpeg;base64," + base64.b64encode(audio_data).decode('utf-8')
-            return jsonify({"audio": b64_audio})
+            # Fetch audio bytes and convert to Base64
+            audio_raw = requests.get(info['url']).content
+            audio_b64 = base64.b64encode(audio_raw).decode('utf-8')
+            return jsonify({"audio_b64": audio_b64})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
