@@ -3,7 +3,7 @@ from flask_cors import CORS
 import yt_dlp
 
 app = Flask(__name__)
-CORS(app) # This tells the browser to allow Google to talk to Render
+CORS(app)
 
 @app.route('/search')
 def search():
@@ -13,29 +13,34 @@ def search():
         'noplaylist': True,
         'quiet': True,
         'extract_flat': False,
+        # This forces a fresh fetch of the stream URL
+        'force_generic_extractor': False,
     }
     
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # Adding "topic" usually forces high-quality verified album art
-            info = ydl.extract_info(f"ytsearch5:{query} topic", download=False)
+            # Adding "audio" helps filter out video-only content
+            info = ydl.extract_info(f"ytsearch5:{query} official audio", download=False)
             results = []
             for entry in info.get('entries', []):
                 if not entry: continue
+                
+                # Try to get the highest resolution thumbnail
+                thumb = entry.get('thumbnail')
+                if entry.get('thumbnails'):
+                    # Sort to find the most reliable thumbnail URL
+                    thumb = entry['thumbnails'][-1]['url']
+
                 results.append({
                     'title': entry.get('title'),
                     'uploader': entry.get('uploader'),
-                    'thumbnail': entry.get('thumbnail'),
+                    'thumbnail': thumb,
                     'audio_url': entry.get('url'),
-                    'is_verified': entry.get('channel_is_verified', False)
+                    'is_verified': True if "Topic" in entry.get('uploader', '') else entry.get('channel_is_verified', False)
                 })
         return jsonify(results)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-@app.route('/health')
-def health():
-    return "Online", 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
