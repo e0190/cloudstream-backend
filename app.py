@@ -13,32 +13,43 @@ def search():
     ydl_opts = {
         'format': 'bestaudio/best',
         'quiet': True,
-        'no_warnings': True,
-        'extract_flat': False,
+        'noplaylist': True,
     }
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(f"ytsearch5:{query} official music", download=False)
+            info = ydl.extract_info(f"ytsearch3:{query} official audio", download=False)
             results = []
             for entry in info.get('entries', []):
                 if not entry: continue
                 
-                # Convert thumbnail to Base64 so Google can't block the URL
+                # Convert Thumbnail to Base64
                 thumb_url = f"https://img.youtube.com/vi/{entry['id']}/mqdefault.jpg"
+                img_b64 = ""
                 try:
-                    img_data = base64.b64encode(requests.get(thumb_url).content).decode('utf-8')
-                    b64_thumb = f"data:image/jpeg;base64,{img_data}"
-                except:
-                    b64_thumb = ""
+                    img_b64 = "data:image/jpeg;base64," + base64.b64encode(requests.get(thumb_url).content).decode('utf-8')
+                except: pass
 
+                # Get Audio URL
                 results.append({
                     'title': entry.get('title'),
                     'uploader': entry.get('uploader'),
-                    'id': entry.get('id'),
-                    'thumbnail': b64_thumb,
-                    'audio_url': entry.get('url')
+                    'thumbnail': img_b64,
+                    'id': entry.get('id')
                 })
         return jsonify(results)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/get_audio/<vid_id>')
+def get_audio(vid_id):
+    ydl_opts = {'format': 'bestaudio/best', 'quiet': True}
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(f"https://www.youtube.com/watch?v={vid_id}", download=False)
+            # Fetch the actual audio bytes and send as a Data URI
+            audio_data = requests.get(info['url']).content
+            b64_audio = "data:audio/mpeg;base64," + base64.b64encode(audio_data).decode('utf-8')
+            return jsonify({"audio": b64_audio})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
