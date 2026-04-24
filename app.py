@@ -1,6 +1,8 @@
-from flask import Flask, request, jsonify, redirect
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 import yt_dlp
+import requests
+import base64
 
 app = Flask(__name__)
 CORS(app)
@@ -8,43 +10,32 @@ CORS(app)
 @app.route('/search')
 def search():
     query = request.args.get('q')
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'quiet': True,
-        'no_warnings': True,
-        'extract_flat': True,
-    }
+    ydl_opts = {'format': 'bestaudio/best', 'quiet': True, 'noplaylist': True}
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # We search for "topic" to get the high-quality official versions
-            info = ydl.extract_info(f"ytsearch5:{query} official audio", download=False)
+            info = ydl.extract_info(f"ytsearch5:{query} official music", download=False)
             results = []
             for entry in info.get('entries', []):
+                if not entry: continue
+                
+                # We fetch the image and turn it into a string so the sandbox can't block it
+                thumb_url = f"https://img.youtube.com/vi/{entry['id']}/mqdefault.jpg"
+                try:
+                    img_data = base64.b64encode(requests.get(thumb_url).content).decode('utf-8')
+                    b64_thumb = f"data:image/jpeg;base64,{img_data}"
+                except:
+                    b64_thumb = ""
+
                 results.append({
                     'title': entry.get('title'),
                     'uploader': entry.get('uploader'),
                     'id': entry.get('id'),
-                    # Direct thumbnail link that usually bypasses Google's filter
-                    'thumbnail': f"https://i.ytimg.com/vi/{entry.get('id')}/hqdefault.jpg"
+                    'thumbnail': b64_thumb,
+                    'audio_url': entry.get('url') # Raw stream URL
                 })
         return jsonify(results)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-@app.route('/stream/<vid_id>')
-def stream(vid_id):
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'quiet': True,
-        'force_generic_extractor': False
-    }
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(f"https://www.youtube.com/watch?v={vid_id}", download=False)
-            # Redirecting is more stable than proxying for home use
-            return redirect(info['url'])
-    except Exception as e:
-        return str(e), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
