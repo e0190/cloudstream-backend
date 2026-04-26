@@ -9,21 +9,25 @@ CORS(app)
 @app.route('/convert')
 def convert():
     url = request.args.get('url')
-    if not url: return jsonify({"error": "No URL"}), 400
+    if not url:
+        return jsonify({"error": "No URL provided"}), 400
 
     ydl_opts = {
         'format': 'bestaudio/best',
         'quiet': True,
         'no_warnings': True,
+        'nocheckcertificate': True,
     }
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
             
-            # Strict "Verified" check for school projects
+            # Strict "Verified Artist" Filter
             uploader = info.get('uploader', '')
-            if "VEVO" not in uploader and "Topic" not in uploader:
+            is_verified = "VEVO" in uploader or "Topic" in uploader
+            
+            if not is_verified:
                 return jsonify({"error": "Only verified artists allowed"}), 403
 
             return jsonify({
@@ -36,6 +40,5 @@ def convert():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    # Render uses the PORT environment variable
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
